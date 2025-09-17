@@ -2,6 +2,7 @@ const express = require("express");
 const User = require("../models/User");
 const Teacher = require("../models/Teacher");
 const School = require("../models/School");
+const Government = require("../models/Government");
 const router = express.Router();
 
 router.get("/login", (req, res) => {
@@ -15,7 +16,7 @@ router.post("/login", async (req, res) => {
     if (role === "teacher") {
       const teacher = await Teacher.findOne({ email }).populate("schoolId");
       if (!teacher || !(await teacher.comparePassword(password))) {
-        return res.render("auth/login", { error: "Invalid credentials" });
+        return res.render("auth/login", { error: "Invalid " });
       }
       req.session.user = {
         id: teacher._id,
@@ -26,10 +27,25 @@ router.post("/login", async (req, res) => {
       };
       return res.redirect("/teacher/dashboard");
     }
-
-    const user = await User.findOne({ email }).populate("schoolId");
+    if (role === "government") {
+      const government = await Government.findOne({ email });
+      if (!government || !(await government.comparePassword(password))) {
+        return res.render("auth/login", { error: "Invalid Credentials" });
+      }
+      req.session.user = {
+        id: government._id,
+        name: government.name,
+        email: government.email,
+        role: "government",
+      };
+      return res.redirect("/government/dashboard");
+    }
+    
+      const user = await User.findOne({ email }).populate("schoolId");
+    console.log(email);
+    console.log(password);
     if (!user || !(await user.comparePassword(password))) {
-      return res.render("auth/login", { error: "Invalid credentials" });
+      return res.render("auth/login", { error: "Invalid Credentials " });
     }
     req.session.user = {
       id: user._id,
@@ -43,7 +59,9 @@ router.post("/login", async (req, res) => {
     }
     // Add more roles as needed
     res.redirect("/");
-  } catch (error) {
+    }
+    
+  catch (error) {
     res.render("auth/login", { error: "Login failed" });
   }
 });
@@ -68,10 +86,14 @@ router.post("/register", async (req, res) => {
       await teacher.save();
       return res.redirect("/auth/login");
     }
-
+    if (role === "government") {
+      const government = new Government({ name, email, password });
+      await government.save();
+      return res.redirect("/auth/login");
+    }
+    // fallback for other roles
     const user = new User({ name, email, password, role, schoolId });
     await user.save();
-
     res.redirect("/auth/login");
   } catch (error) {
     res.render("auth/register", { error: "Registration failed" });

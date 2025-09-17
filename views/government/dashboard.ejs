@@ -1,0 +1,378 @@
+<%- include('../partials/header', { title: 'Government Dashboard' }) %>
+
+<div class="space-y-6">
+    <!-- Welcome Header -->
+    <div class="bg-gradient-to-r from-green-600 to-teal-700 rounded-xl p-6 text-white">
+        <h1 class="text-3xl font-bold mb-2">Government Dashboard</h1>
+        <p class="text-green-100">
+            <i class="fas fa-chart-line mr-2"></i>
+            District-wide attendance monitoring and analytics
+        </p>
+    </div>
+
+    <!-- Overall Statistics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover-scale">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Total Schools</p>
+                    <p class="text-3xl font-bold text-gray-900"><%= overallStats && overallStats.totalSchools != null ? overallStats.totalSchools : 0 %></p>
+                </div>
+                <div class="bg-blue-100 p-3 rounded-full">
+                    <i class="fas fa-school text-blue-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover-scale">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Total Students</p>
+                    <p class="text-3xl font-bold text-green-600"><%= overallStats && overallStats.totalStudents != null ? overallStats.totalStudents : 0 %></p>
+                </div>
+                <div class="bg-green-100 p-3 rounded-full">
+                    <i class="fas fa-users text-green-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover-scale">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Avg. Attendance</p>
+                    <p class="text-3xl font-bold text-indigo-600"><%= overallStats && overallStats.avgAttendance != null ? overallStats.avgAttendance : 'N/A' %>%</p>
+                </div>
+                <div class="bg-indigo-100 p-3 rounded-full">
+                    <i class="fas fa-chart-pie text-indigo-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-6 shadow-md border border-gray-100 hover-scale">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Avg. Dropout Risk</p>
+                    <p class="text-3xl font-bold text-red-600"><%= overallStats && overallStats.avgDropoutRisk != null ? overallStats.avgDropoutRisk : 'N/A' %>%</p>
+                </div>
+                <div class="bg-red-100 p-3 rounded-full">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Map -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-100 p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-gray-800">
+                <i class="fas fa-map-marked-alt mr-2 text-blue-600"></i>
+                School Distribution Heat Map
+            </h2>
+            <div class="flex space-x-2">
+                <button onclick="toggleMapView('attendance')" id="attendanceBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+                    Attendance Rate
+                </button>
+                <button onclick="toggleMapView('dropout')" id="dropoutBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-400 transition-colors">
+                    Dropout Risk
+                </button>
+            </div>
+        </div>
+        
+        <div id="mapContainer" class="h-96 bg-gray-100 rounded-lg relative overflow-hidden">
+            <!-- Simulated map with school markers -->
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-100 to-green-100">
+                <% schools.forEach((school, index) => { %>
+                    <div class="absolute school-marker cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
+                         style="left: <%= 20 + (index % 5) * 15 %>%; top: <%= 20 + Math.floor(index / 5) * 20 %>%;"
+                         onclick="showSchoolDetails('<%= school._id %>', '<%= school.name %>', '<%= school.attendanceRate %>', '<%= school.dropoutRisk %>')">
+                        <div class="w-6 h-6 rounded-full border-2 border-white shadow-lg
+                                    <%= parseFloat(school.attendanceRate) >= 90 ? 'bg-green-500' : 
+                                        parseFloat(school.attendanceRate) >= 80 ? 'bg-yellow-500' : 'bg-red-500' %>">
+                        </div>
+                        <div class="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white px-2 py-1 rounded shadow-lg text-xs whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity">
+                            <%= school.name %>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+            
+            <!-- Map Legend -->
+            <div class="absolute bottom-4 left-4 bg-white p-3 rounded-lg shadow-lg">
+                <h4 class="text-sm font-semibold mb-2">Legend</h4>
+                <div class="space-y-1 text-xs">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                        <span>Good (≥90%)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                        <span>Average (80-89%)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                        <span>Needs Attention (<80%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schools Overview -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-school mr-2 text-green-600"></i>
+                    Schools Overview
+                </h2>
+                <div class="flex space-x-2">
+                    <input type="text" placeholder="Search schools..." 
+                           class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <select class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option>All Districts</option>
+                        <option>District A</option>
+                        <option>District B</option>
+                        <option>District C</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">District</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Rate</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dropout Risk</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <% schools.forEach(school => { %>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10">
+                                        <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                            <i class="fas fa-school text-green-600"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900"><%= school.name %></div>
+                                        <div class="text-sm text-gray-500">Code: <%= school.code %></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <%= school.district %>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <%= school.totalStudents %>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="text-sm font-medium text-gray-900"><%= school.attendanceRate %>%</div>
+                                    <div class="ml-2 w-16 bg-gray-200 rounded-full h-2">
+                                        <div class="bg-<%= parseFloat(school.attendanceRate) >= 90 ? 'green' : parseFloat(school.attendanceRate) >= 80 ? 'yellow' : 'red' %>-600 h-2 rounded-full" 
+                                             style="width: <%= school.attendanceRate %>%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <% const riskLevel = parseFloat(school.dropoutRisk) > 15 ? 'high' : parseFloat(school.dropoutRisk) > 8 ? 'medium' : 'low'; %>
+                                <% const riskColor = riskLevel === 'high' ? 'red' : riskLevel === 'medium' ? 'yellow' : 'green'; %>
+                                <span class="px-2 py-1 text-xs font-medium bg-<%= riskColor %>-100 text-<%= riskColor %>-800 rounded-full">
+                                    <%= school.dropoutRisk %>% Risk
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <% const status = parseFloat(school.attendanceRate) >= 85 ? 'good' : 'attention'; %>
+                                <% const statusColor = status === 'good' ? 'green' : 'red'; %>
+                                <span class="px-2 py-1 text-xs font-medium bg-<%= statusColor %>-100 text-<%= statusColor %>-800 rounded-full">
+                                    <%= status === 'good' ? 'Good' : 'Needs Attention' %>
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <a href="/government/schools/<%= school._id %>" class="text-green-600 hover:text-green-900 mr-3">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button onclick="generateSchoolReport('<%= school._id %>')" class="text-blue-600 hover:text-blue-900">
+                                    <i class="fas fa-file-alt"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-100 p-6">
+        <h2 class="text-xl font-bold text-gray-800 mb-6">Quick Actions</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <a href="/government/analytics" class="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                <i class="fas fa-chart-line text-2xl text-blue-600 mb-2"></i>
+                <span class="text-sm font-medium text-blue-800">View Analytics</span>
+            </a>
+            
+            <button onclick="generateDistrictReport()" class="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                <i class="fas fa-file-export text-2xl text-green-600 mb-2"></i>
+                <span class="text-sm font-medium text-green-800">District Report</span>
+            </button>
+            
+            <button onclick="scheduleInspection()" class="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                <i class="fas fa-calendar-plus text-2xl text-purple-600 mb-2"></i>
+                <span class="text-sm font-medium text-purple-800">Schedule Inspection</span>
+            </button>
+            
+            <button onclick="sendAlert()" class="flex flex-col items-center p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
+                <i class="fas fa-bell text-2xl text-orange-600 mb-2"></i>
+                <span class="text-sm font-medium text-orange-800">Send Alert</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- School Details Modal -->
+<div id="schoolModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800" id="modalSchoolName">School Details</h3>
+            <button onclick="closeSchoolModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="space-y-4" id="modalContent">
+            <!-- Content will be populated by JavaScript -->
+        </div>
+        
+        <div class="flex justify-end space-x-3 mt-6">
+            <button onclick="closeSchoolModal()" 
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                Close
+            </button>
+            <a id="modalViewLink" href="#" 
+               class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                View Details
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentMapView = 'attendance';
+
+    function toggleMapView(view) {
+        currentMapView = view;
+        
+        // Update button states
+        document.getElementById('attendanceBtn').className = view === 'attendance' 
+            ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors'
+            : 'px-4 py-2 bg-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-400 transition-colors';
+            
+        document.getElementById('dropoutBtn').className = view === 'dropout' 
+            ? 'px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors'
+            : 'px-4 py-2 bg-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-400 transition-colors';
+        
+        // Update map markers (in a real app, this would update the actual map)
+        const markers = document.querySelectorAll('.school-marker div');
+        markers.forEach((marker, index) => {
+            if (view === 'attendance') {
+                // Color based on attendance rate
+                const rate = parseFloat(document.querySelectorAll('tbody tr')[index]?.cells[3]?.textContent || '0');
+                marker.className = marker.className.replace(/bg-(green|yellow|red)-500/g, '') + 
+                    (rate >= 90 ? ' bg-green-500' : rate >= 80 ? ' bg-yellow-500' : ' bg-red-500');
+            } else {
+                // Color based on dropout risk
+                const risk = parseFloat(document.querySelectorAll('tbody tr')[index]?.cells[4]?.textContent || '0');
+                marker.className = marker.className.replace(/bg-(green|yellow|red)-500/g, '') + 
+                    (risk > 15 ? ' bg-red-500' : risk > 8 ? ' bg-yellow-500' : ' bg-green-500');
+            }
+        });
+    }
+
+    function showSchoolDetails(schoolId, schoolName, attendanceRate, dropoutRisk) {
+        document.getElementById('modalSchoolName').textContent = schoolName;
+        document.getElementById('modalViewLink').href = `/government/schools/${schoolId}`;
+        
+        document.getElementById('modalContent').innerHTML = `
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Attendance Rate:</span>
+                    <span class="font-semibold text-blue-600">${attendanceRate}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Dropout Risk:</span>
+                    <span class="font-semibold text-red-600">${dropoutRisk}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Status:</span>
+                    <span class="font-semibold ${parseFloat(attendanceRate) >= 85 ? 'text-green-600' : 'text-red-600'}">
+                        ${parseFloat(attendanceRate) >= 85 ? 'Good' : 'Needs Attention'}
+                    </span>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('schoolModal').classList.remove('hidden');
+        document.getElementById('schoolModal').classList.add('flex');
+    }
+
+    function closeSchoolModal() {
+        document.getElementById('schoolModal').classList.add('hidden');
+        document.getElementById('schoolModal').classList.remove('flex');
+    }
+
+    function generateSchoolReport(schoolId) {
+        showToast('Generating school report...', 'info');
+        setTimeout(() => {
+            showToast('School report generated successfully!', 'success');
+        }, 2000);
+    }
+
+    function generateDistrictReport() {
+        showToast('Generating district-wide report...', 'info');
+        setTimeout(() => {
+            showToast('District report generated successfully!', 'success');
+        }, 3000);
+    }
+
+    function scheduleInspection() {
+        showToast('Inspection scheduling feature coming soon!', 'info');
+    }
+
+    function sendAlert() {
+        showToast('Alert notification feature coming soon!', 'info');
+    }
+
+    function showToast(message, type) {
+        const colors = {
+            success: 'bg-green-600',
+            info: 'bg-blue-600',
+            warning: 'bg-yellow-600',
+            error: 'bg-red-600'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-3"></i>
+                ${message}
+            </div>
+        `;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+</script>
+
+<%- include('../partials/footer') %>
