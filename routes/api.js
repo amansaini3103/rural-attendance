@@ -97,43 +97,48 @@ router.get('/attendance-data', async (req, res) => {
 // Face recognition endpoint
 router.post('/face-recognition', async (req, res) => {
   try {
-    const { faceData, schoolId } = req.body;
-    
-    // In a real implementation, you would:
-    // 1. Extract face encodings from the image
-    // 2. Compare with stored face encodings
-    // 3. Find the best match
-    
-    // For demo purposes, we'll simulate this
-    const students = await Student.find({ schoolId, faceEncoding: { $exists: true } });
-    
-    // Simulate face matching (replace with actual ML model)
-    const matchedStudent = students[0]; // Placeholder
-    
-    if (!matchedStudent) {
-      return res.status(404).json({ error: 'No matching student found' });
+    console.log('POST /face-recognition body:', req.body);
+    const { studentId, status } = req.body;
+    if (!studentId || !status) {
+      console.log('Missing studentId or status');
+      return res.status(400).json({ error: 'Missing studentId or status' });
     }
-    
-    // Mark attendance
+    const student = await Student.findById(studentId);
+    if (!student) {
+      console.log('Student not found:', studentId);
+      return res.status(404).json({ error: 'Student not found' });
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    const attendance = new Attendance({
-      studentId: matchedStudent._id,
-      schoolId: matchedStudent.schoolId,
-      date: new Date(),
-      status: 'present',
-      timeIn: new Date(),
-      method: 'facial'
+    // Check if already marked for today
+    let attendance = await Attendance.findOne({
+      studentId: student._id,
+      date: { $gte: today }
     });
-    
-    await attendance.save();
-    
+    if (attendance) {
+      attendance.status = status;
+      attendance.method = 'facial';
+      attendance.timeIn = new Date();
+      await attendance.save();
+      console.log('Updated existing attendance:', attendance);
+    } else {
+      attendance = new Attendance({
+        studentId: student._id,
+        schoolId: student.schoolId,
+        date: new Date(),
+        status,
+        timeIn: new Date(),
+        method: 'facial'
+      });
+      await attendance.save();
+      console.log('Created new attendance:', attendance);
+    }
     res.json({
       message: 'Attendance marked via facial recognition',
-      student: matchedStudent.name
+      student: student.name
     });
   } catch (error) {
+    console.log('Error in /face-recognition:', error);
     res.status(500).json({ error: 'Face recognition failed' });
   }
 });

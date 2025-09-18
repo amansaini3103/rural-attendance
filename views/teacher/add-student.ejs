@@ -22,7 +22,7 @@
             </div>
         <% } %>
 
-        <form method="POST" action="/teacher/students/add" class="space-y-6">
+    <form method="POST" action="/teacher/students/add" class="space-y-6" id="addStudentForm">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Basic Information -->
                 <div class="md:col-span-2">
@@ -136,6 +136,26 @@
                     Add Student
                 </button>
             </div>
+            <!-- Face Capture Section -->
+            <div class="md:col-span-2 mt-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
+                    <i class="fas fa-camera mr-2 text-pink-600"></i>
+                    Face Registration (Required for Recognition)
+                </h3>
+                <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8">
+                    <div>
+                        <video id="faceCam" width="320" height="240" autoplay muted class="rounded-lg border"></video>
+                        <button type="button" id="captureFace" class="mt-2 w-full bg-pink-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-pink-700 transition-colors">
+                            <i class="fas fa-camera"></i> Capture Face
+                        </button>
+                    </div>
+                    <div>
+                        <canvas id="facePreview" width="320" height="240" class="rounded-lg border"></canvas>
+                        <input type="hidden" id="faceDescriptor" name="faceDescriptor">
+                        <p id="faceStatus" class="text-sm mt-2 text-gray-600"></p>
+                    </div>
+                </div>
+            </div>
         </form>
     </div>
 </div>
@@ -159,6 +179,75 @@
         }
         e.target.value = value;
     });
+
+// Face-api.js model loading and face capture logic
+let faceStream;
+let faceDetectionModelLoaded = false;
+
+function setupFaceApiCapture() {
+    const video = document.getElementById('faceCam');
+    const canvas = document.getElementById('facePreview');
+    const faceStatus = document.getElementById('faceStatus');
+    const faceDescriptorInput = document.getElementById('faceDescriptor');
+    async function loadFaceApiModels() {
+        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+        await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+        await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+        faceDetectionModelLoaded = true;
+    }
+    async function startFaceCam() {
+        try {
+            faceStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = faceStream;
+        } catch (err) {
+            faceStatus.textContent = 'Unable to access webcam.';
+        }
+    }
+    document.getElementById('captureFace').addEventListener('click', async () => {
+        if (!faceDetectionModelLoaded) {
+            faceStatus.textContent = 'Face models not loaded yet.';
+            return;
+        }
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (detection && detection.descriptor) {
+            faceDescriptorInput.value = JSON.stringify(Array.from(detection.descriptor));
+            faceStatus.textContent = 'Face captured and ready!';
+            faceStatus.className = 'text-green-600 text-sm mt-2';
+        } else {
+            faceDescriptorInput.value = '';
+            faceStatus.textContent = 'No face detected. Please try again.';
+            faceStatus.className = 'text-red-600 text-sm mt-2';
+        }
+    });
+    return Promise.all([
+        loadFaceApiModels(),
+        startFaceCam()
+    ]);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.faceapi) {
+        setupFaceApiCapture();
+    } else {
+        const faceStatus = document.getElementById('faceStatus');
+        if (faceStatus) faceStatus.textContent = 'face-api.js not loaded.';
+    }
+});
+
+// Prevent form submission if faceDescriptor is empty
+document.getElementById('addStudentForm').addEventListener('submit', function(e) {
+    const faceDescriptorInput = document.getElementById('faceDescriptor');
+    if (!faceDescriptorInput.value || faceDescriptorInput.value === '[]') {
+        e.preventDefault();
+        const faceStatus = document.getElementById('faceStatus');
+        faceStatus.textContent = 'Please capture a clear face before submitting.';
+        faceStatus.className = 'text-red-600 text-sm mt-2';
+        window.scrollTo({ top: faceStatus.offsetTop - 100, behavior: 'smooth' });
+    }
+});
 </script>
 
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <%- include('../partials/footer') %>

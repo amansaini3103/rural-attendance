@@ -1,8 +1,23 @@
+
+// ...existing code...
+
+
 const express = require('express');
 const Student = require('../models/Student');
 const Attendance = require('../models/Attendance');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
+
+// API: Get all students with face descriptors for facial recognition
+router.get('/api/students/face-descriptors', async (req, res) => {
+  try {
+    const schoolId = req.session.user.schoolId._id;
+    const students = await Student.find({ schoolId, faceDescriptor: { $exists: true, $ne: null } }, 'name _id faceDescriptor');
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch face descriptors' });
+  }
+});
 
 // Apply middleware to all teacher routes
 router.use(requireAuth);
@@ -87,20 +102,44 @@ router.get('/students/add', (req, res) => {
 
 router.post('/students/add', async (req, res) => {
   try {
-    const { name, rollNumber, rfidTagId, class: className, section, parentContact, parentEmail } = req.body;
+    console.log('POST /students/add body:', req.body);
+    const { name, rollNumber, rfidTagId, class: className, section, parentContact, parentEmail, faceDescriptor } = req.body;
     const schoolId = req.session.user.schoolId._id;
-    
+    let parsedDescriptor = undefined;
+    let faceError = null;
+    try {
+      console.log('Received faceDescriptor (raw):', faceDescriptor, 'Type:', typeof faceDescriptor);
+      if (faceDescriptor) {
+        parsedDescriptor = JSON.parse(faceDescriptor);
+      }
+      console.log('Parsed faceDescriptor:', parsedDescriptor, 'Type:', typeof parsedDescriptor, 'Length:', Array.isArray(parsedDescriptor) ? parsedDescriptor.length : 'N/A');
+    } catch (e) {
+      console.log('Error parsing faceDescriptor:', e);
+      parsedDescriptor = undefined;
+    }
+    // Validate faceDescriptor: must be a non-empty array of numbers
+    if (!Array.isArray(parsedDescriptor) || parsedDescriptor.length !== 128 || !parsedDescriptor.every(n => typeof n === 'number')) {
+      faceError = 'Face capture required. Please capture a clear face before submitting.';
+    }
+    if (faceError) {
+      console.log('Face descriptor validation failed:', parsedDescriptor);
+      return res.render('teacher/add-student', {
+        user: req.session.user,
+        error: faceError
+      });
+    }
     const student = new Student({
-      name, rollNumber, rfidTagId, class: className, section, 
-      parentContact, parentEmail, schoolId
+      name, rollNumber, rfidTagId, class: className, section,
+      parentContact, parentEmail, schoolId,
+      faceDescriptor: parsedDescriptor
     });
-    
     await student.save();
     res.redirect('/teacher/students');
   } catch (error) {
-    res.render('teacher/add-student', { 
-      user: req.session.user, 
-      error: 'Failed to add student' 
+    console.log('Error in /students/add:', error);
+    res.render('teacher/add-student', {
+      user: req.session.user,
+      error: 'Failed to add student'
     });
   }
 });
@@ -190,16 +229,26 @@ router.post('/mark-attendance', async (req, res) => {
     today.setHours(0, 0, 0, 0);
     
     for (const [studentId, status] of Object.entries(attendance)) {
+      // Always update the single record for this student, school, and day
       await Attendance.findOneAndUpdate(
-        { studentId, schoolId, date: { $gte: today } },
+        { studentId, schoolId, date: { $gte: today, $lt: new Date(today.getTime() + 24*60*60*1000) } },
         { 
           status, 
           method: 'manual',
           markedBy: req.session.user.id,
           timeIn: status === 'present' ? new Date() : null
         },
-        { upsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true }
       );
+      // Remove any duplicate records for this student, school, and day
+      const records = await Attendance.find({ studentId, schoolId, date: { $gte: today, $lt: new Date(today.getTime() + 24*60*60*1000) } });
+      if (records.length > 1) {
+        // Keep the most recent, remove the rest
+        records.sort((a, b) => b.updatedAt - a.updatedAt);
+        for (let i = 1; i < records.length; i++) {
+          await Attendance.deleteOne({ _id: records[i]._id });
+        }
+      }
     }
     
     res.redirect('/teacher/attendance');

@@ -9,7 +9,8 @@ const studentSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
   parentContact: { type: String },
   parentEmail: { type: String },
-  faceEncoding: { type: String }, // Stored face encoding for recognition
+  faceEncoding: { type: String }, // (legacy) Stored face encoding for recognition
+  faceDescriptor: { type: [Number] }, // New: face-api.js descriptor array
   dropoutRisk: { type: Number, default: 0 }, // ML prediction score
   riskFactors: [String],
   totalDays: { type: Number, default: 0 },
